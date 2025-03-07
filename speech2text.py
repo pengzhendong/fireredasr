@@ -15,13 +15,11 @@
 import argparse
 import glob
 import os
-import sys
 
 from fireredasr.models.fireredasr import FireRedAsr
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--asr_type", type=str, required=True, choices=["aed", "llm"])
-parser.add_argument("--model_dir", type=str, required=True)
 
 # Input / Output
 parser.add_argument("--wav_path", type=str)
@@ -51,7 +49,7 @@ def main(args):
     wavs = get_wav_info(args)
     fout = open(args.output, "w") if args.output else None
 
-    model = FireRedAsr.from_pretrained(args.asr_type, args.model_dir)
+    model = FireRedAsr.from_pretrained(args.asr_type)
 
     batch_uttid = []
     batch_wav_path = []

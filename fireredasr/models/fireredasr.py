@@ -22,24 +22,24 @@ from fireredasr.models.fireredasr_aed import FireRedAsrAed
 from fireredasr.models.fireredasr_llm import FireRedAsrLlm
 from fireredasr.tokenizer.aed_tokenizer import ChineseCharEnglishSpmTokenizer
 from fireredasr.tokenizer.llm_tokenizer import LlmTokenizerWrapper
+from modelscope import snapshot_download
 
 
 class FireRedAsr:
     @classmethod
-    def from_pretrained(cls, asr_type, model_dir):
+    def from_pretrained(cls, asr_type):
         assert asr_type in ["aed", "llm"]
 
+        model_dir = snapshot_download(f"pengzhendong/FireRedASR-{asr_type.upper()}-L")
         cmvn_path = os.path.join(model_dir, "cmvn.ark")
         feat_extractor = ASRFeatExtractor(cmvn_path)
-
+        model_path = os.path.join(model_dir, "model.pth.tar")
         if asr_type == "aed":
-            model_path = os.path.join(model_dir, "model.pth.tar")
             dict_path = os.path.join(model_dir, "dict.txt")
             spm_model = os.path.join(model_dir, "train_bpe1000.model")
             model = load_fireredasr_aed_model(model_path)
             tokenizer = ChineseCharEnglishSpmTokenizer(dict_path, spm_model)
         elif asr_type == "llm":
-            model_path = os.path.join(model_dir, "model.pth.tar")
             encoder_path = os.path.join(model_dir, "asr_encoder.pth.tar")
             llm_dir = os.path.join(model_dir, "Qwen2-7B-Instruct")
             model, tokenizer = load_firered_llm_model_and_tokenizer(model_path, encoder_path, llm_dir)
