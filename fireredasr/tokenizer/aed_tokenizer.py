@@ -29,6 +29,7 @@ class ChineseCharEnglishSpmTokenizer:
     - Need to put SPM piece into dict file
     - If not set spm_model, will use English char and <space>
     """
+
     SPM_SPACE = "▁"
 
     def __init__(self, dict_path, spm_model, unk="<unk>", space="<space>"):
@@ -45,13 +46,13 @@ class ChineseCharEnglishSpmTokenizer:
                 print("Please add <space> to your dict, or it will be <unk>")
 
     def tokenize(self, text, replace_punc=True):
-        #if text == "":
+        # if text == "":
         #    logging.info(f"empty text")
         text = text.upper()
         tokens = []
         if replace_punc:
             text = re.sub("[，。？！,\.?!]", " ", text)
-        pattern = re.compile(r'([\u3400-\u4dbf\u4e00-\u9fff])')
+        pattern = re.compile(r"([\u3400-\u4dbf\u4e00-\u9fff])")
         parts = pattern.split(text.strip())
         parts = [p for p in parts if len(p.strip()) > 0]
         for part in parts:
@@ -77,5 +78,5 @@ class ChineseCharEnglishSpmTokenizer:
             tokens = inputs
         s = f"{join_symbol}".join(tokens)
         if replace_spm_space:
-            s = s.replace(self.SPM_SPACE, ' ').strip()
+            s = s.replace(self.SPM_SPACE, " ").strip()
         return s

@@ -23,8 +23,7 @@ from transformers import AutoModelForCausalLM
 
 from fireredasr.models.fireredasr_aed import FireRedAsrAed
 from fireredasr.models.module.adapter import Adapter
-from fireredasr.tokenizer.llm_tokenizer import DEFAULT_SPEECH_TOKEN, IGNORE_TOKEN_ID
-from fireredasr.tokenizer.llm_tokenizer import LlmTokenizerWrapper
+from fireredasr.tokenizer.llm_tokenizer import DEFAULT_SPEECH_TOKEN, IGNORE_TOKEN_ID, LlmTokenizerWrapper
 from fireredasr.utils.param import count_model_parameters
 
 
@@ -84,6 +83,7 @@ class FireRedAsrLlm(nn.Module):
         else:
             if args.use_lora:
                 from peft import LoraConfig, get_peft_model
+
                 lora_config = LoraConfig(
                     r=64,
                     lora_alpha=16,
@@ -107,20 +107,15 @@ class FireRedAsrLlm(nn.Module):
         llm.config.pad_token_id = tokenizer.pad_token_id
         llm.config.bos_token_id = tokenizer.convert_tokens_to_ids("<|im_start|>")
         llm.config.eos_token_id = tokenizer.convert_tokens_to_ids("<|im_end|>")
-        llm.config.default_speech_token_id = tokenizer.convert_tokens_to_ids(
-            DEFAULT_SPEECH_TOKEN
-        )
+        llm.config.default_speech_token_id = tokenizer.convert_tokens_to_ids(DEFAULT_SPEECH_TOKEN)
 
         # Build projector
-        encoder_projector = Adapter(
-            encoder_dim, llm_dim, args.encoder_downsample_rate)
+        encoder_projector = Adapter(encoder_dim, llm_dim, args.encoder_downsample_rate)
         count_model_parameters(encoder_projector)
 
-        return cls(encoder, llm, encoder_projector,
-                   args.freeze_encoder, args.freeze_llm)
+        return cls(encoder, llm, encoder_projector, args.freeze_encoder, args.freeze_llm)
 
-    def __init__(self, encoder, llm, encoder_projector,
-                 freeze_encoder, freeze_llm):
+    def __init__(self, encoder, llm, encoder_projector, freeze_encoder, freeze_llm):
         super().__init__()
         self.encoder = encoder
         self.llm = llm
@@ -130,18 +125,30 @@ class FireRedAsrLlm(nn.Module):
         self.freeze_llm = freeze_llm
         self.llm_config = llm.config
 
-    def transcribe(self, padded_feat, feat_lengths, padded_input_ids, attention_mask,
-                   beam_size=1, decode_max_len=0, decode_min_len=0,
-                   repetition_penalty=1.0, llm_length_penalty=1.0, temperature=1.0):
+    def transcribe(
+        self,
+        padded_feat,
+        feat_lengths,
+        padded_input_ids,
+        attention_mask,
+        beam_size=1,
+        decode_max_len=0,
+        decode_min_len=0,
+        repetition_penalty=1.0,
+        llm_length_penalty=1.0,
+        temperature=1.0,
+    ):
         encoder_outs, enc_lengths, enc_mask = self.encoder(padded_feat, feat_lengths)
         speech_features, speech_lens = self.encoder_projector(encoder_outs, enc_lengths)
         inputs_embeds = self.llm.get_input_embeddings()(padded_input_ids)
 
-        inputs_embeds, attention_mask, _ = \
-            self._merge_input_ids_with_speech_features(
-                speech_features.to(inputs_embeds.dtype), inputs_embeds, padded_input_ids, attention_mask,
-                speech_lens=speech_lens
-            )
+        inputs_embeds, attention_mask, _ = self._merge_input_ids_with_speech_features(
+            speech_features.to(inputs_embeds.dtype),
+            inputs_embeds,
+            padded_input_ids,
+            attention_mask,
+            speech_lens=speech_lens,
+        )
 
         max_new_tokens = speech_features.size(1) if decode_max_len < 1 else decode_max_len
         max_new_tokens = max(1, max_new_tokens)
@@ -163,10 +170,8 @@ class FireRedAsrLlm(nn.Module):
 
         return generated_ids
 
-
     def _merge_input_ids_with_speech_features(
-        self, speech_features, inputs_embeds, input_ids, attention_mask, labels=None,
-        speech_lens=None
+        self, speech_features, inputs_embeds, input_ids, attention_mask, labels=None, speech_lens=None
     ):
         """
         Modified from: https://github.com/k2-fsa/icefall/blob/master/egs/speech_llm/ASR_LLM/whisper_llm_zh/model.py
@@ -174,28 +179,20 @@ class FireRedAsrLlm(nn.Module):
         speech_lens = None
         num_speechs, speech_len, embed_dim = speech_features.shape
         batch_size, sequence_length = input_ids.shape
-        left_padding = not torch.sum(
-            input_ids[:, -1] == torch.tensor(self.llm.config.pad_token_id)
-        )
+        left_padding = not torch.sum(input_ids[:, -1] == torch.tensor(self.llm.config.pad_token_id))
         # 1. Create a mask to know where special speech tokens are
         special_speech_token_mask = input_ids == self.llm.config.default_speech_token_id
         num_special_speech_tokens = torch.sum(special_speech_token_mask, dim=-1)
         # Compute the maximum embed dimension
-        max_embed_dim = (
-            num_special_speech_tokens.max() * (speech_len - 1)
-        ) + sequence_length
-        batch_indices, non_speech_indices = torch.where(
-            input_ids != self.llm.config.default_speech_token_id
-        )
+        max_embed_dim = (num_special_speech_tokens.max() * (speech_len - 1)) + sequence_length
+        batch_indices, non_speech_indices = torch.where(input_ids != self.llm.config.default_speech_token_id)
 
         # 2. Compute the positions where text should be written
         # Calculate new positions for text tokens in merged speech-text sequence.
         # `special_speech_token_mask` identifies speech tokens. Each speech token will be replaced by `nb_text_tokens_per_speechs - 1` text tokens.
         # `torch.cumsum` computes how each speech token shifts subsequent text token positions.
         # - 1 to adjust for zero-based indexing, as `cumsum` inherently increases indices by one.
-        new_token_positions = (
-            torch.cumsum((special_speech_token_mask * (speech_len - 1) + 1), -1) - 1
-        )  # (N,U)
+        new_token_positions = torch.cumsum((special_speech_token_mask * (speech_len - 1) + 1), -1) - 1  # (N,U)
         nb_speech_pad = max_embed_dim - 1 - new_token_positions[:, -1]
         if left_padding:
             new_token_positions += nb_speech_pad[:, None]  # offset for left padding
@@ -234,16 +231,10 @@ class FireRedAsrLlm(nn.Module):
 
         # 4. Fill the embeddings based on the mask. If we have ["hey" "<speech>", "how", "are"]
         # we need to index copy on [0, 577, 578, 579] for the text and [1:576] for the speech features
-        final_embedding[batch_indices, text_to_overwrite] = inputs_embeds[
-            batch_indices, non_speech_indices
-        ]
-        final_attention_mask[batch_indices, text_to_overwrite] = attention_mask[
-            batch_indices, non_speech_indices
-        ]
+        final_embedding[batch_indices, text_to_overwrite] = inputs_embeds[batch_indices, non_speech_indices]
+        final_attention_mask[batch_indices, text_to_overwrite] = attention_mask[batch_indices, non_speech_indices]
         if labels is not None:
-            final_labels[batch_indices, text_to_overwrite] = labels[
-                batch_indices, non_speech_indices
-            ]
+            final_labels[batch_indices, text_to_overwrite] = labels[batch_indices, non_speech_indices]
 
         # 5. Fill the embeddings corresponding to the speechs. Anything that is not `text_positions` needs filling (#29835)
         speech_to_overwrite = torch.full(
@@ -255,9 +246,7 @@ class FireRedAsrLlm(nn.Module):
         speech_to_overwrite[batch_indices, text_to_overwrite] = False
         if speech_lens is not None:
             speech_pad_position = speech_to_overwrite.cumsum(-1) <= speech_lens[:, None]
-        speech_to_overwrite &= speech_to_overwrite.cumsum(-1) - 1 >= nb_speech_pad[
-            :, None
-        ].to(target_device)
+        speech_to_overwrite &= speech_to_overwrite.cumsum(-1) - 1 >= nb_speech_pad[:, None].to(target_device)
 
         if speech_to_overwrite.sum() != speech_features.shape[:-1].numel():
             raise ValueError(
@@ -265,17 +254,13 @@ class FireRedAsrLlm(nn.Module):
                 f" the number of speech given to the model is {num_speechs}. This prevents correct indexing and breaks batch generation."
             )
 
-        final_embedding[speech_to_overwrite] = (
-            speech_features.contiguous().reshape(-1, embed_dim).to(target_device)
-        )
+        final_embedding[speech_to_overwrite] = speech_features.contiguous().reshape(-1, embed_dim).to(target_device)
         if speech_lens is not None:
             speech_to_overwrite &= speech_pad_position
         final_attention_mask |= speech_to_overwrite
 
         # 6. Mask out the embedding at padding positions, as we later use the past_key_value value to determine the non-attended tokens.
-        batch_indices, pad_indices = torch.where(
-            input_ids == self.llm.config.pad_token_id
-        )
+        batch_indices, pad_indices = torch.where(input_ids == self.llm.config.pad_token_id)
         indices_to_mask = new_token_positions[batch_indices, pad_indices]
 
         final_embedding[batch_indices, indices_to_mask] = 0
@@ -283,4 +268,4 @@ class FireRedAsrLlm(nn.Module):
         if labels is None:
             final_labels = None
 
-        return final_embedding, final_attention_mask, final_labels #, position_ids
+        return final_embedding, final_attention_mask, final_labels  # , position_ids

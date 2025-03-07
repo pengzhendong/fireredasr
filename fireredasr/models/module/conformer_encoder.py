@@ -18,9 +18,9 @@ import torch.nn.functional as F
 
 
 class ConformerEncoder(nn.Module):
-    def __init__(self, idim, n_layers, n_head, d_model,
-                 residual_dropout=0.1, dropout_rate=0.1, kernel_size=33,
-                 pe_maxlen=5000):
+    def __init__(
+        self, idim, n_layers, n_head, d_model, residual_dropout=0.1, dropout_rate=0.1, kernel_size=33, pe_maxlen=5000
+    ):
         super().__init__()
         self.odim = d_model
 
@@ -30,15 +30,12 @@ class ConformerEncoder(nn.Module):
 
         self.layer_stack = nn.ModuleList()
         for l in range(n_layers):
-            block = RelPosEmbConformerBlock(d_model, n_head,
-                        residual_dropout,
-                        dropout_rate, kernel_size)
+            block = RelPosEmbConformerBlock(d_model, n_head, residual_dropout, dropout_rate, kernel_size)
             self.layer_stack.append(block)
 
     def forward(self, padded_input, input_lengths, pad=True):
         if pad:
-            padded_input = F.pad(padded_input,
-                (0, 0, 0, self.input_preprocessor.context - 1), 'constant', 0.0)
+            padded_input = F.pad(padded_input, (0, 0, 0, self.input_preprocessor.context - 1), "constant", 0.0)
         src_mask = self.padding_position_is_0(padded_input, input_lengths)
 
         embed_output, input_lengths, src_mask = self.input_preprocessor(padded_input, src_mask)
@@ -48,8 +45,7 @@ class ConformerEncoder(nn.Module):
 
         enc_outputs = []
         for enc_layer in self.layer_stack:
-            enc_output = enc_layer(enc_output, pos_emb, slf_attn_mask=src_mask,
-                                   pad_mask=src_mask)
+            enc_output = enc_layer(enc_output, pos_emb, slf_attn_mask=src_mask, pad_mask=src_mask)
             enc_outputs.append(enc_output)
 
         return enc_output, input_lengths, src_mask
@@ -58,21 +54,17 @@ class ConformerEncoder(nn.Module):
         N, T = padded_input.size()[:2]
         mask = torch.ones((N, T)).to(padded_input.device)
         for i in range(N):
-            mask[i, input_lengths[i]:] = 0
+            mask[i, input_lengths[i] :] = 0
         mask = mask.unsqueeze(dim=1)
         return mask.to(torch.uint8)
 
 
 class RelPosEmbConformerBlock(nn.Module):
-    def __init__(self, d_model, n_head,
-                 residual_dropout=0.1,
-                 dropout_rate=0.1, kernel_size=33):
+    def __init__(self, d_model, n_head, residual_dropout=0.1, dropout_rate=0.1, kernel_size=33):
         super().__init__()
         self.ffn1 = ConformerFeedForward(d_model, dropout_rate)
-        self.mhsa = RelPosMultiHeadAttention(n_head, d_model,
-                                             residual_dropout)
-        self.conv = ConformerConvolution(d_model, kernel_size,
-                                         dropout_rate)
+        self.mhsa = RelPosMultiHeadAttention(n_head, d_model, residual_dropout)
+        self.conv = ConformerConvolution(d_model, kernel_size, dropout_rate)
         self.ffn2 = ConformerFeedForward(d_model, dropout_rate)
         self.layer_norm = nn.LayerNorm(d_model)
 
@@ -122,8 +114,7 @@ class RelPositionalEncoding(torch.nn.Module):
         pe_positive = torch.zeros(max_len, d_model, requires_grad=False)
         pe_negative = torch.zeros(max_len, d_model, requires_grad=False)
         position = torch.arange(0, max_len).unsqueeze(1).float()
-        div_term = torch.exp(torch.arange(0, d_model, 2).float() *
-                             -(torch.log(torch.tensor(10000.0)).item()/d_model))
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * -(torch.log(torch.tensor(10000.0)).item() / d_model))
         pe_positive[:, 0::2] = torch.sin(position * div_term)
         pe_positive[:, 1::2] = torch.cos(position * div_term)
         pe_negative[:, 0::2] = torch.sin(-1 * position * div_term)
@@ -132,7 +123,7 @@ class RelPositionalEncoding(torch.nn.Module):
         pe_positive = torch.flip(pe_positive, [0]).unsqueeze(0)
         pe_negative = pe_negative[1:].unsqueeze(0)
         pe = torch.cat([pe_positive, pe_negative], dim=1)
-        self.register_buffer('pe', pe)
+        self.register_buffer("pe", pe)
 
     def forward(self, x):
         # Tmax = 2 * max_len - 1
@@ -145,17 +136,12 @@ class ConformerFeedForward(nn.Module):
     def __init__(self, d_model, dropout_rate=0.1):
         super().__init__()
         pre_layer_norm = nn.LayerNorm(d_model)
-        linear_expand = nn.Linear(d_model, d_model*4)
+        linear_expand = nn.Linear(d_model, d_model * 4)
         nonlinear = Swish()
         dropout_pre = nn.Dropout(dropout_rate)
-        linear_project = nn.Linear(d_model*4, d_model)
+        linear_project = nn.Linear(d_model * 4, d_model)
         dropout_post = nn.Dropout(dropout_rate)
-        self.net = nn.Sequential(pre_layer_norm,
-                                 linear_expand,
-                                 nonlinear,
-                                 dropout_pre,
-                                 linear_project,
-                                 dropout_post)
+        self.net = nn.Sequential(pre_layer_norm, linear_expand, nonlinear, dropout_pre, linear_project, dropout_post)
 
     def forward(self, x):
         residual = x
@@ -169,16 +155,15 @@ class ConformerConvolution(nn.Module):
         super().__init__()
         assert kernel_size % 2 == 1
         self.pre_layer_norm = nn.LayerNorm(d_model)
-        self.pointwise_conv1 = nn.Conv1d(d_model, d_model*4, kernel_size=1, bias=False)
+        self.pointwise_conv1 = nn.Conv1d(d_model, d_model * 4, kernel_size=1, bias=False)
         self.glu = F.glu
         self.padding = (kernel_size - 1) // 2
-        self.depthwise_conv = nn.Conv1d(d_model*2, d_model*2,
-                                        kernel_size, stride=1,
-                                        padding=self.padding,
-                                        groups=d_model*2, bias=False)
-        self.batch_norm = nn.LayerNorm(d_model*2)
+        self.depthwise_conv = nn.Conv1d(
+            d_model * 2, d_model * 2, kernel_size, stride=1, padding=self.padding, groups=d_model * 2, bias=False
+        )
+        self.batch_norm = nn.LayerNorm(d_model * 2)
         self.swish = Swish()
-        self.pointwise_conv2 = nn.Conv1d(d_model*2, d_model, kernel_size=1, bias=False)
+        self.pointwise_conv2 = nn.Conv1d(d_model * 2, d_model, kernel_size=1, bias=False)
         self.dropout = nn.Dropout(dropout_rate)
 
     def forward(self, x, mask=None):
@@ -203,8 +188,7 @@ class ConformerConvolution(nn.Module):
 
 
 class EncoderMultiHeadAttention(nn.Module):
-    def __init__(self, n_head, d_model,
-                 residual_dropout=0.1):
+    def __init__(self, n_head, d_model, residual_dropout=0.1):
         super().__init__()
         assert d_model % n_head == 0
         self.n_head = n_head
@@ -219,7 +203,7 @@ class EncoderMultiHeadAttention(nn.Module):
         self.layer_norm_k = nn.LayerNorm(d_model)
         self.layer_norm_v = nn.LayerNorm(d_model)
 
-        self.attention = ScaledDotProductAttention(temperature=self.d_k ** 0.5)
+        self.attention = ScaledDotProductAttention(temperature=self.d_k**0.5)
         self.fc = nn.Linear(n_head * self.d_v, d_model, bias=False)
         self.dropout = nn.Dropout(residual_dropout)
 
@@ -263,7 +247,7 @@ class ScaledDotProductAttention(nn.Module):
         super().__init__()
         self.temperature = temperature
         self.dropout = nn.Dropout(0.0)
-        self.INF = float('inf')
+        self.INF = float("inf")
 
     def forward(self, q, k, v, mask=None):
         attn = torch.matmul(q, k.transpose(2, 3)) / self.temperature
@@ -286,12 +270,10 @@ class ScaledDotProductAttention(nn.Module):
 
 
 class RelPosMultiHeadAttention(EncoderMultiHeadAttention):
-    def __init__(self, n_head, d_model,
-                 residual_dropout=0.1):
-        super().__init__(n_head, d_model,
-                         residual_dropout)
+    def __init__(self, n_head, d_model, residual_dropout=0.1):
+        super().__init__(n_head, d_model, residual_dropout)
         d_k = d_model // n_head
-        self.scale = 1.0 / (d_k ** 0.5)
+        self.scale = 1.0 / (d_k**0.5)
         self.linear_pos = nn.Linear(d_model, n_head * d_k, bias=False)
         self.pos_bias_u = nn.Parameter(torch.FloatTensor(n_head, d_k))
         self.pos_bias_v = nn.Parameter(torch.FloatTensor(n_head, d_k))

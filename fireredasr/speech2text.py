@@ -19,10 +19,9 @@ import sys
 
 from fireredasr.models.fireredasr import FireRedAsr
 
-
 parser = argparse.ArgumentParser()
-parser.add_argument('--asr_type', type=str, required=True, choices=["aed", "llm"])
-parser.add_argument('--model_dir', type=str, required=True)
+parser.add_argument("--asr_type", type=str, required=True, choices=["aed", "llm"])
+parser.add_argument("--model_dir", type=str, required=True)
 
 # Input / Output
 parser.add_argument("--wav_path", type=str)
@@ -32,7 +31,7 @@ parser.add_argument("--wav_scp", type=str)
 parser.add_argument("--output", type=str)
 
 # Decode Options
-parser.add_argument('--use_gpu', type=int, default=1)
+parser.add_argument("--use_gpu", type=int, default=1)
 parser.add_argument("--batch_size", type=int, default=1)
 parser.add_argument("--beam_size", type=int, default=1)
 parser.add_argument("--decode_max_len", type=int, default=0)
@@ -67,18 +66,18 @@ def main(args):
             batch_uttid,
             batch_wav_path,
             {
-            "use_gpu": args.use_gpu,
-            "beam_size": args.beam_size,
-            "nbest": args.nbest,
-            "decode_max_len": args.decode_max_len,
-            "softmax_smoothing": args.softmax_smoothing,
-            "aed_length_penalty": args.aed_length_penalty,
-            "eos_penalty": args.eos_penalty,
-            "decode_min_len": args.decode_min_len,
-            "repetition_penalty": args.repetition_penalty,
-            "llm_length_penalty": args.llm_length_penalty,
-            "temperature": args.temperature
-            }
+                "use_gpu": args.use_gpu,
+                "beam_size": args.beam_size,
+                "nbest": args.nbest,
+                "decode_max_len": args.decode_max_len,
+                "softmax_smoothing": args.softmax_smoothing,
+                "aed_length_penalty": args.aed_length_penalty,
+                "eos_penalty": args.eos_penalty,
+                "decode_min_len": args.decode_min_len,
+                "repetition_penalty": args.repetition_penalty,
+                "llm_length_penalty": args.llm_length_penalty,
+                "temperature": args.temperature,
+            },
         )
 
         for result in results:

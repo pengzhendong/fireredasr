@@ -43,7 +43,7 @@ class LlmTokenizerWrapper:
         text = re.sub("\s+", " ", text)
 
         # remove space between Chinese and keep space between English
-        pattern = re.compile(r'([\u3400-\u4dbf\u4e00-\u9fff])')  # Chinese
+        pattern = re.compile(r"([\u3400-\u4dbf\u4e00-\u9fff])")  # Chinese
         parts = pattern.split(text.strip())
         parts = [p for p in parts if len(p.strip()) > 0]
         text = "".join(parts)
@@ -87,15 +87,9 @@ class LlmTokenizerWrapper:
         # Padding texts
         max_len_texts = max([len(text) for text in texts])
         if tokenizer.padding_side == "right":
-            texts = [
-                text + [tokenizer.pad_token_id] * (max_len_texts - len(text))
-                for text in texts
-            ]
+            texts = [text + [tokenizer.pad_token_id] * (max_len_texts - len(text)) for text in texts]
         else:
-            texts = [
-                [tokenizer.pad_token_id] * (max_len_texts - len(text)) + text
-                for text in texts
-            ]
+            texts = [[tokenizer.pad_token_id] * (max_len_texts - len(text)) + text for text in texts]
         input_ids = torch.tensor(texts, dtype=torch.int)
 
         target_ids = input_ids.clone()
@@ -104,9 +98,7 @@ class LlmTokenizerWrapper:
         # first get the indices of the tokens
         mask_prompt = True
         if mask_prompt:
-            mask_indices = torch.where(
-                input_ids == tokenizer.convert_tokens_to_ids("assistant")
-                )
+            mask_indices = torch.where(input_ids == tokenizer.convert_tokens_to_ids("assistant"))
             for i in range(mask_indices[0].size(0)):
                 row = mask_indices[0][i]
                 col = mask_indices[1][i]

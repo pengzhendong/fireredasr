@@ -52,7 +52,7 @@ class TokenDict:
 
     def read_dict(self, dict_path):
         id2word, word2id = [], {}
-        with open(dict_path, encoding='utf8') as f:
+        with open(dict_path, encoding="utf8") as f:
             for i, line in enumerate(f):
                 tokens = line.strip().split()
                 if len(tokens) >= 2:

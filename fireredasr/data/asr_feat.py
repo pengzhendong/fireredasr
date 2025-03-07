@@ -15,8 +15,8 @@
 import math
 import os
 
-import kaldiio
 import kaldi_native_fbank as knf
+import kaldiio
 import numpy as np
 import torch
 
@@ -24,8 +24,7 @@ import torch
 class ASRFeatExtractor:
     def __init__(self, kaldi_cmvn_file):
         self.cmvn = CMVN(kaldi_cmvn_file) if kaldi_cmvn_file != "" else None
-        self.fbank = KaldifeatFbank(num_mel_bins=80, frame_length=25,
-            frame_shift=10, dither=0.0)
+        self.fbank = KaldifeatFbank(num_mel_bins=80, frame_length=25, frame_shift=10, dither=0.0)
 
     def __call__(self, wav_paths):
         feats = []
@@ -49,16 +48,13 @@ class ASRFeatExtractor:
         max_len = max([xs[i].size(0) for i in range(n_batch)])
         pad = torch.ones(n_batch, max_len, *xs[0].size()[1:]).to(xs[0].device).to(xs[0].dtype).fill_(pad_value)
         for i in range(n_batch):
-            pad[i, :xs[i].size(0)] = xs[i]
+            pad[i, : xs[i].size(0)] = xs[i]
         return pad
-
-
 
 
 class CMVN:
     def __init__(self, kaldi_cmvn_file):
-        self.dim, self.means, self.inverse_std_variences = \
-            self.read_kaldi_cmvn(kaldi_cmvn_file)
+        self.dim, self.means, self.inverse_std_variences = self.read_kaldi_cmvn(kaldi_cmvn_file)
 
     def __call__(self, x, is_train=False):
         assert x.shape[-1] == self.dim, "CMVN dim mismatch"
@@ -79,7 +75,7 @@ class CMVN:
         for d in range(dim):
             mean = stats[0, d] / count
             means.append(mean.item())
-            varience = (stats[1, d] / count) - mean*mean
+            varience = (stats[1, d] / count) - mean * mean
             if varience < floor:
                 varience = floor
             istd = 1.0 / math.sqrt(varience)
@@ -87,10 +83,8 @@ class CMVN:
         return dim, np.array(means), np.array(inverse_std_variences)
 
 
-
 class KaldifeatFbank:
-    def __init__(self, num_mel_bins=80, frame_length=25, frame_shift=10,
-                 dither=1.0):
+    def __init__(self, num_mel_bins=80, frame_length=25, frame_shift=10, dither=1.0):
         self.dither = dither
         opts = knf.FbankOptions()
         opts.frame_opts.dither = dither

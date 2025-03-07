@@ -32,9 +32,7 @@ class Adapter(nn.Module):
         seq_len = x.size(1)
 
         x = x.contiguous()
-        x = x.view(
-            batch_size, seq_len // self.ds, feat_dim * self.ds
-        )
+        x = x.view(batch_size, seq_len // self.ds, feat_dim * self.ds)
 
         x = self.linear1(x)
         x = self.relu(x)

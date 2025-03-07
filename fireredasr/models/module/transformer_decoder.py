@@ -1,4 +1,3 @@
-
 # Copyright (c) 2025 FireRedTeam (https://github.com/FireRedTeam)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional, Dict
+from typing import Dict, List, Optional
 
 import torch
 import torch.nn as nn
@@ -22,10 +21,7 @@ from torch import Tensor
 
 
 class TransformerDecoder(nn.Module):
-    def __init__(
-            self, sos_id, eos_id, pad_id, odim,
-            n_layers, n_head, d_model,
-            residual_dropout=0.1, pe_maxlen=5000):
+    def __init__(self, sos_id, eos_id, pad_id, odim, n_layers, n_head, d_model, residual_dropout=0.1, pe_maxlen=5000):
         super().__init__()
         self.INF = 1e10
         # parameters
@@ -48,11 +44,19 @@ class TransformerDecoder(nn.Module):
         self.layer_norm_out = nn.LayerNorm(d_model)
 
         self.tgt_word_prj.weight = self.tgt_word_emb.weight
-        self.scale = (d_model ** 0.5)
+        self.scale = d_model**0.5
 
-    def batch_beam_search(self, encoder_outputs, src_masks,
-                   beam_size=1, nbest=1, decode_max_len=0,
-                   softmax_smoothing=1.0, length_penalty=0.0, eos_penalty=1.0):
+    def batch_beam_search(
+        self,
+        encoder_outputs,
+        src_masks,
+        beam_size=1,
+        nbest=1,
+        decode_max_len=0,
+        softmax_smoothing=1.0,
+        length_penalty=0.0,
+        eos_penalty=1.0,
+    ):
         B = beam_size
         N, Ti, H = encoder_outputs.size()
         device = encoder_outputs.device
@@ -60,30 +64,25 @@ class TransformerDecoder(nn.Module):
         assert eos_penalty > 0.0 and eos_penalty <= 1.0
 
         # Init
-        encoder_outputs = encoder_outputs.unsqueeze(1).repeat(1, B, 1, 1).view(N*B, Ti, H)
-        src_mask = src_masks.unsqueeze(1).repeat(1, B, 1, 1).view(N*B, -1, Ti)
-        ys = torch.ones(N*B, 1).fill_(self.sos_id).long().to(device)
+        encoder_outputs = encoder_outputs.unsqueeze(1).repeat(1, B, 1, 1).view(N * B, Ti, H)
+        src_mask = src_masks.unsqueeze(1).repeat(1, B, 1, 1).view(N * B, -1, Ti)
+        ys = torch.ones(N * B, 1).fill_(self.sos_id).long().to(device)
         caches: List[Optional[Tensor]] = []
         for _ in range(self.n_layers):
             caches.append(None)
-        scores = torch.tensor([0.0] + [-self.INF]*(B-1)).float().to(device)
-        scores = scores.repeat(N).view(N*B, 1)
+        scores = torch.tensor([0.0] + [-self.INF] * (B - 1)).float().to(device)
+        scores = scores.repeat(N).view(N * B, 1)
         is_finished = torch.zeros_like(scores)
 
         # Autoregressive Prediction
         for t in range(maxlen):
             tgt_mask = self.ignored_target_position_is_0(ys, self.pad_id)
 
-            dec_output = self.dropout(
-                self.tgt_word_emb(ys) * self.scale +
-                self.positional_encoding(ys))
+            dec_output = self.dropout(self.tgt_word_emb(ys) * self.scale + self.positional_encoding(ys))
 
             i = 0
             for dec_layer in self.layer_stack:
-                dec_output = dec_layer.forward(
-                    dec_output, encoder_outputs,
-                    tgt_mask, src_mask,
-                    cache=caches[i])
+                dec_output = dec_layer.forward(dec_output, encoder_outputs, tgt_mask, src_mask, cache=caches[i])
                 caches[i] = dec_output
                 i += 1
 
@@ -103,17 +102,17 @@ class TransformerDecoder(nn.Module):
             scores = scores + t_topB_scores
 
             # Pruning
-            scores = scores.view(N, B*B)
+            scores = scores.view(N, B * B)
             scores, topB_score_ids = torch.topk(scores, k=B, dim=1)
             scores = scores.view(-1, 1)
 
-            topB_row_number_in_each_B_rows_of_ys = torch.div(topB_score_ids, B).view(N*B)
-            stride = B * torch.arange(N).view(N, 1).repeat(1, B).view(N*B).to(device)
+            topB_row_number_in_each_B_rows_of_ys = torch.div(topB_score_ids, B).view(N * B)
+            stride = B * torch.arange(N).view(N, 1).repeat(1, B).view(N * B).to(device)
             topB_row_number_in_ys = topB_row_number_in_each_B_rows_of_ys.long() + stride.long()
 
             # Update ys
             ys = ys[topB_row_number_in_ys]
-            t_ys = torch.gather(t_topB_ys.view(N, B*B), dim=1, index=topB_score_ids).view(N*B, 1)
+            t_ys = torch.gather(t_topB_ys.view(N, B * B), dim=1, index=topB_score_ids).view(N * B, 1)
             ys = torch.cat((ys, t_ys), dim=1)
 
             # Update caches
@@ -125,7 +124,7 @@ class TransformerDecoder(nn.Module):
 
             # Update finished state
             is_finished = t_ys.eq(self.eos_id)
-            if is_finished.sum().item() == N*B:
+            if is_finished.sum().item() == N * B:
                 break
 
         # Length penalty (follow GNMT)
@@ -133,23 +132,21 @@ class TransformerDecoder(nn.Module):
         ys = ys.view(N, B, -1)
         ys_lengths = self.get_ys_lengths(ys)
         if length_penalty > 0.0:
-            penalty = torch.pow((5+ys_lengths.float())/(5.0+1), length_penalty)
+            penalty = torch.pow((5 + ys_lengths.float()) / (5.0 + 1), length_penalty)
             scores /= penalty
         nbest_scores, nbest_ids = torch.topk(scores, k=int(nbest), dim=1)
         nbest_scores = -1.0 * nbest_scores
         index = nbest_ids + B * torch.arange(N).view(N, 1).to(device).long()
-        nbest_ys = ys.view(N*B, -1)[index.view(-1)]
+        nbest_ys = ys.view(N * B, -1)[index.view(-1)]
         nbest_ys = nbest_ys.view(N, nbest_ids.size(1), -1)
-        nbest_ys_lengths = ys_lengths.view(N*B)[index.view(-1)].view(N, -1)
+        nbest_ys_lengths = ys_lengths.view(N * B)[index.view(-1)].view(N, -1)
 
         # result
         nbest_hyps: List[List[Dict[str, Tensor]]] = []
         for n in range(N):
             n_nbest_hyps: List[Dict[str, Tensor]] = []
             for i, score in enumerate(nbest_scores[n]):
-                new_hyp = {
-                    "yseq": nbest_ys[n, i, 1:nbest_ys_lengths[n, i]]
-                }
+                new_hyp = {"yseq": nbest_ys[n, i, 1 : nbest_ys_lengths[n, i]]}
                 n_nbest_hyps.append(new_hyp)
             nbest_hyps.append(n_nbest_hyps)
         return nbest_hyps
@@ -170,7 +167,7 @@ class TransformerDecoder(nn.Module):
     def set_finished_beam_score_to_zero(self, scores, is_finished):
         NB, B = scores.size()
         is_finished = is_finished.float()
-        mask_score = torch.tensor([0.0] + [-self.INF]*(B-1)).float().to(scores.device)
+        mask_score = torch.tensor([0.0] + [-self.INF] * (B - 1)).float().to(scores.device)
         mask_score = mask_score.view(1, B).repeat(NB, 1)
         return scores * (1 - is_finished) + mask_score * is_finished
 
@@ -184,7 +181,6 @@ class TransformerDecoder(nn.Module):
         return ys_lengths.int()
 
 
-
 class DecoderLayer(nn.Module):
     def __init__(self, d_model, n_head, dropout):
         super().__init__()
@@ -195,10 +191,9 @@ class DecoderLayer(nn.Module):
         self.cross_attn = DecoderMultiHeadAttention(d_model, n_head, dropout)
 
         self.mlp_norm = nn.LayerNorm(d_model)
-        self.mlp = PositionwiseFeedForward(d_model, d_model*4, dropout)
+        self.mlp = PositionwiseFeedForward(d_model, d_model * 4, dropout)
 
-    def forward(self, dec_input, enc_output, self_attn_mask, cross_attn_mask,
-                cache=None):
+    def forward(self, dec_input, enc_output, self_attn_mask, cross_attn_mask, cache=None):
         x = dec_input
         residual = x
         x = self.self_attn_norm(x)
@@ -237,8 +232,7 @@ class DecoderMultiHeadAttention(nn.Module):
         self.w_ks = nn.Linear(d_model, n_head * self.d_k, bias=False)
         self.w_vs = nn.Linear(d_model, n_head * self.d_k)
 
-        self.attention = DecoderScaledDotProductAttention(
-            temperature=self.d_k ** 0.5)
+        self.attention = DecoderScaledDotProductAttention(temperature=self.d_k**0.5)
         self.fc = nn.Linear(n_head * self.d_k, d_model)
         self.dropout = nn.Dropout(dropout)
 
@@ -302,12 +296,11 @@ class PositionalEncoding(nn.Module):
         assert d_model % 2 == 0
         pe = torch.zeros(max_len, d_model, requires_grad=False)
         position = torch.arange(0, max_len).unsqueeze(1).float()
-        div_term = torch.exp(torch.arange(0, d_model, 2).float() *
-                             -(torch.log(torch.tensor(10000.0)).item()/d_model))
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * -(torch.log(torch.tensor(10000.0)).item() / d_model))
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
         pe = pe.unsqueeze(0)
-        self.register_buffer('pe', pe)
+        self.register_buffer("pe", pe)
 
     def forward(self, x):
         length = x.size(1)
