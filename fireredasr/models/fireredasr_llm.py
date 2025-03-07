@@ -14,8 +14,6 @@
 
 import logging
 import os
-import random
-import re
 
 import torch
 import torch.nn as nn
@@ -47,7 +45,7 @@ class FireRedAsrLlm(nn.Module):
         encoder, encoder_dim = cls.load_encoder(args.encoder_path)
         count_model_parameters(encoder)
         if args.freeze_encoder:
-            logging.info(f"Frezee encoder")
+            logging.info("Frezee encoder")
             for name, param in encoder.named_parameters():
                 param.requires_grad = False
             encoder.eval()
@@ -76,7 +74,7 @@ class FireRedAsrLlm(nn.Module):
         # LLM Freeze or LoRA
         llm_dim = llm.config.hidden_size
         if args.freeze_llm:
-            logging.info(f"Frezee LLM")
+            logging.info("Frezee LLM")
             for name, param in llm.named_parameters():
                 param.requires_grad = False
             llm.eval()

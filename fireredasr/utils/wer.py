@@ -90,7 +90,7 @@ def text2tokens(text):
 
 
 def compute_uttid2wer_info(refs, hyps, print_sentence_wer=False):
-    print(f">>> Compute uttid to wer info", flush=True)
+    print(">>> Compute uttid to wer info", flush=True)
 
     uttid2wer_info = OrderedDict()
     wer_stat = WerStats()
@@ -294,14 +294,12 @@ def count_english_ditgit(ref, hyp, wer_info):
             n_en_word += 1
             for y in ali:
                 if y[0] == i + 1 and y[2] == ALIGN_CRT:
-                    j = y[1] - 1
                     n_en_correct += 1
                     break
         if re.match(patt_dig, token):
             n_dig_word += 1
             for y in ali:
                 if y[0] == i + 1 and y[2] == ALIGN_CRT:
-                    j = y[1] - 1
                     n_dig_correct += 1
                     break
         if not re.match(patt_cjk, token) and not re.match(patt_en, token) and not re.match(patt_dig, token):

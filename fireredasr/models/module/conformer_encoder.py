@@ -29,7 +29,7 @@ class ConformerEncoder(nn.Module):
         self.dropout = nn.Dropout(residual_dropout)
 
         self.layer_stack = nn.ModuleList()
-        for l in range(n_layers):
+        for _ in range(n_layers):
             block = RelPosEmbConformerBlock(d_model, n_head, residual_dropout, dropout_rate, kernel_size)
             self.layer_stack.append(block)
 

@@ -24,17 +24,17 @@ class TokenDict:
         self.unkid = self.word2id[unk] if unk else -1
 
     def get(self, key, default):
-        if type(default) == str:
+        if isinstance(default, str):
             default = self.word2id[default]
         return self.word2id.get(key, default)
 
     def __getitem__(self, key):
-        if type(key) == str:
+        if isinstance(key, str):
             if self.unk:
                 return self.word2id.get(key, self.word2id[self.unk])
             else:
                 return self.word2id[key]
-        elif type(key) == int:
+        elif isinstance(key, int):
             return self.id2word[key]
         else:
             raise TypeError("Key should be str or int")
@@ -43,9 +43,9 @@ class TokenDict:
         return len(self.id2word)
 
     def __contains__(self, query):
-        if type(query) == str:
+        if isinstance(query, str):
             return query in self.word2id
-        elif type(query) == int:
+        elif isinstance(query, int):
             return query in self.id2word
         else:
             raise TypeError("query should be str or int")

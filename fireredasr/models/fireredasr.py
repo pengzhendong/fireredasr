@@ -16,13 +16,13 @@ import os
 import time
 
 import torch
+from modelscope import snapshot_download
 
 from fireredasr.data.asr_feat import ASRFeatExtractor
 from fireredasr.models.fireredasr_aed import FireRedAsrAed
 from fireredasr.models.fireredasr_llm import FireRedAsrLlm
 from fireredasr.tokenizer.aed_tokenizer import ChineseCharEnglishSpmTokenizer
 from fireredasr.tokenizer.llm_tokenizer import LlmTokenizerWrapper
-from modelscope import snapshot_download
 
 
 class FireRedAsr:

@@ -36,7 +36,7 @@ class TransformerDecoder(nn.Module):
         self.dropout = nn.Dropout(residual_dropout)
 
         self.layer_stack = nn.ModuleList()
-        for l in range(n_layers):
+        for _ in range(n_layers):
             block = DecoderLayer(d_model, n_head, residual_dropout)
             self.layer_stack.append(block)
 

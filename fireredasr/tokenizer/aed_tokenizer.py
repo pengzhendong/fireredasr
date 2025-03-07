@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
 import re
 
 import sentencepiece as spm
@@ -72,7 +71,7 @@ class ChineseCharEnglishSpmTokenizer:
 
     def detokenize(self, inputs, join_symbol="", replace_spm_space=True):
         """inputs is ids or tokens, do not need self.sp"""
-        if len(inputs) > 0 and type(inputs[0]) == int:
+        if len(inputs) > 0 and isinstance(inputs[0], int):
             tokens = [self.dict[id] for id in inputs]
         else:
             tokens = inputs

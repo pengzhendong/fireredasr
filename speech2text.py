@@ -92,16 +92,15 @@ def get_wav_info(args):
     Returns:
         wavs: list of (uttid, wav_path)
     """
-    base = lambda p: os.path.basename(p).replace(".wav", "")
     if args.wav_path:
-        wavs = [(base(args.wav_path), args.wav_path)]
+        wavs = [(os.path.basename(args.wav_path).replace(".wav", ""), args.wav_path)]
     elif args.wav_paths and len(args.wav_paths) >= 1:
-        wavs = [(base(p), p) for p in sorted(args.wav_paths)]
+        wavs = [(os.path.basename(p).replace(".wav", ""), p) for p in sorted(args.wav_paths)]
     elif args.wav_scp:
         wavs = [line.strip().split() for line in open(args.wav_scp)]
     elif args.wav_dir:
         wavs = glob.glob(f"{args.wav_dir}/**/*.wav", recursive=True)
-        wavs = [(base(p), p) for p in sorted(wavs)]
+        wavs = [(os.path.basename(p).replace(".wav", ""), p) for p in sorted(wavs)]
     else:
         raise ValueError("Please provide valid wav info")
     print(f"#wavs={len(wavs)}")
